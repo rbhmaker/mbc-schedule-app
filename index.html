@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MBC 취재 및 촬영 로케이션 포트폴리오</title>
+    
+    <!-- OpenStreetMap (Leaflet.js) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        /* 🎨 Gemini Dark Mode Theme (Default) */
+        :root {
+            --bg-main: #131314;
+            --bg-surface: #1e1e20;
+            --bg-card: #28282a;
+            --bg-card-hover: #333538;
+            --border-color: #444746;
+            --text-main: #e3e3e3;
+            --text-sub: #8e918f;
+            --accent-highlight: #3c4043;
+            --accent-border: #8e918f;
+            
+            /* 마커 및 팝업 테마 동기화 변수 */
+            --popup-bg: #28282a;
+            --popup-text: #e3e3e3;
+            --popup-border: #444746;
+            --popup-item-bg: rgba(255, 255, 255, 0.05);
+            --popup-item-hover: rgba(255, 255, 255, 0.12);
+
+            /* 네온 효과 강도 (다크모드) */
+            --neon-glow-intensity: 0.6;
+            --neon-text-shadow: 0 0 6px var(--tag-color), 0 0 12px rgba(255, 255, 255, 0.2);
+            --neon-box-shadow: 0 0 8px var(--tag-color), inset 0 0 4px var(--tag-color);
+        }
+
+        /* ☀️ Gemini Light Mode Adaptive Palette */
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg-main: #f8f9fa;
+                --bg-surface: #f0f4f9;
+                --bg-card: #ffffff;
+                --bg-card-hover: #e9eef6;
+                --border-color: #e1e3e1;
+                --text-main: #1f1f1f;
+                --text-sub: #444746;
+                --accent-highlight: #e3e3e3;
+                --accent-border: #72777d;
+                
+                /* 마커 및 팝업 라이트모드 적응 */
+                --popup-bg: #ffffff;
+                --popup-text: #1f1f1f;
+                --popup-border: #e1e3e1;
+                --popup-item-bg: rgba(0, 0, 0, 0.03);
+                --popup-item-hover: rgba(0, 0, 0, 0.08);
+
+                /* 네온 효과 강도 (라이트모드: 대비감 중심) */
+                --neon-glow-intensity: 0.35;
+                --neon-text-shadow: 0 0 3px var(--tag-color);
+                --neon-box-shadow: 0 0 6px var(--tag-color);
+            }
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Pretendard", sans-serif; 
+            display: flex; height: 100vh; overflow: hidden; background: var(--bg-main); color: var(--text-main); position: relative; 
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* 방송 송출 글리치 애니메이션 */
+        body.glitch-active { animation: tvTurnOnGlitch 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes tvTurnOnGlitch {
+            0% { transform: scaleY(0.005) scaleX(1.1); filter: brightness(3) contrast(2) hue-rotate(90deg); opacity: 0.8; }
+            15% { transform: scaleY(1.05) scaleX(0.98) skewX(-12deg); filter: drop-shadow(-8px 0 red) drop-shadow(8px 0 cyan) brightness(1.8); }
+            30% { transform: translate(-10px, 4px) skewX(8deg); filter: drop-shadow(6px 0 blue) drop-shadow(-6px 0 yellow); clip-path: inset(15% 0 35% 0); }
+            45% { transform: translate(8px, -3px) scaleY(0.95); filter: brightness(1.4) contrast(1.2); clip-path: inset(50% 0 10% 0); }
+            65% { transform: translate(-3px, 1px); filter: drop-shadow(-3px 0 cyan) drop-shadow(3px 0 magenta); clip-path: inset(0 0 0 0); }
+            80% { transform: translate(2px, 0); filter: brightness(1.1); }
+            100% { transform: translate(0, 0) scale(1) skewX(0); filter: none; opacity: 1; }
+        }
+
+        /* 방송 오버레이 */
+        #broadcast-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999; display: flex; justify-content: center; align-items: center; opacity: 1; transition: opacity 0.3s ease; background: #d1d5db; }
+        #broadcast-overlay.hidden { opacity: 0; pointer-events: none; }
+        .smpte-bars-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; z-index: 1; filter: saturate(0.8); }
+        .smpte-top { height: 67%; display: flex; width: 100%; } .smpte-top .bar { flex: 1; height: 100%; }
+        .bar-grey { background: #c0c0c0; } .bar-yellow { background: #c0c000; } .bar-cyan { background: #00c0c0; } .bar-green { background: #00c000; } .bar-magenta { background: #c000c0; } .bar-red { background: #c00000; } .bar-blue { background: #0000c0; }
+        .smpte-middle { height: 8%; display: flex; width: 100%; } .smpte-middle .bar { flex: 1; height: 100%; }
+        .bar-m-blue { background: #0000c0; } .bar-m-black { background: #131313; } .bar-m-magenta { background: #c000c0; } .bar-m-black { background: #131313; } .bar-m-cyan { background: #00c0c0; } .bar-m-black { background: #131313; } .bar-m-grey { background: #c0c0c0; }
+        .smpte-bottom { height: 25%; display: flex; width: 100%; }
+        .b-chunk-1 { width: 17.85%; background: #00214c; } .b-chunk-2 { width: 14.28%; background: #ffffff; } .b-chunk-3 { width: 14.28%; background: #32006a; } .b-chunk-4 { width: 25%; display: flex; } .pluge-1 { width: 33.33%; background: #070707; } .pluge-2 { width: 33.33%; background: #131313; } .pluge-3 { width: 33.33%; background: #1d1d1d; } .b-chunk-5 { width: 28.59%; background: #131313; }
+        .film-grain-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; opacity: 0.22; pointer-events: none; background-image: radial-gradient(#000 12%, transparent 12%), radial-gradient(#fff 12%, transparent 12%); background-size: 3px 3px; }
+        #noiseCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 3; display: none; opacity: 0.65; pointer-events: none; }
+        .broadcast-text-only { position: relative; z-index: 5; text-align: center; color: #111827; font-family: "Courier New", monospace !important; font-size: 1.45rem; font-weight: bold; }
+        .typing-cursor { display: inline-block; width: 8px; height: 1.1em; background: currentColor; margin-left: 4px; animation: cursorBlink 0.6s infinite; }
+        @keyframes cursorBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        .vcr-toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); z-index: 8000; background: var(--bg-card); color: var(--text-main); padding: 10px 22px; border-radius: 30px; font-size: 0.85rem; font-weight: 500; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid var(--accent-border); display: flex; align-items: center; gap: 8px; opacity: 0; transition: all 0.4s; }
+        .vcr-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+        /* 메인 사이드바 */
+        #sidebar { width: 360px; min-width: 340px; height: 100%; background: var(--bg-surface); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; z-index: 1000; box-shadow: 6px 0 24px rgba(0,0,0,0.15); transition: transform 0.35s; position: relative; }
+        #sidebar.collapsed { transform: translateX(-100%); position: absolute; }
+        .sidebar-header { padding: 16px 16px 8px 16px; background: var(--bg-surface); position: relative; }
+        .brand-tag { display: block; width: 100%; text-align: center; font-size: 1.35rem; font-weight: 900; color: var(--text-main); background: var(--bg-card); padding: 10px 0; border-radius: 10px; letter-spacing: 0.12em; border: 1px solid var(--border-color); box-shadow: 0 4px 14px rgba(0,0,0,0.05); margin-bottom: 10px; }
+
+        .calendar-container { background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 10px; }
+        .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .calendar-header h4 { font-size: 0.85rem; font-weight: 800; color: var(--text-main); }
+        .calendar-nav-btn { background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; padding: 2px 6px; font-size: 0.72rem; color: var(--text-main); }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+        .calendar-day-head { font-size: 0.65rem; font-weight: 700; color: var(--text-sub); padding-bottom: 2px; }
+        
+        /* 캘린더 날짜 하이라이팅 */
+        .calendar-date-cell { font-size: 0.7rem; padding: 4px 0; border-radius: 6px; color: var(--text-sub); user-select: none; border: 2px solid transparent; transition: all 0.2s; }
+        .calendar-date-cell.has-event { background: var(--bg-card); color: var(--text-main); font-weight: 800; border: 1px solid var(--border-color); cursor: pointer; }
+        .calendar-date-cell.has-event:hover { border-color: var(--accent-border); }
+        .calendar-date-cell.selected-date { background: var(--accent-highlight) !important; color: var(--text-main) !important; border-color: var(--accent-border) !important; font-weight: 900; z-index: 5; }
+
+        .fade-divider-top, .fade-divider-bottom { height: 12px; pointer-events: none; z-index: 10; }
+        .fade-divider-top { background: linear-gradient(to bottom, var(--bg-surface), rgba(0, 0, 0, 0)); }
+        .fade-divider-bottom { background: linear-gradient(to top, var(--bg-surface), rgba(0, 0, 0, 0)); }
+
+        .location-list { flex: 1; overflow-y: auto; padding: 4px 16px; position: relative; scroll-behavior: smooth; }
+        
+        /* 카드 리밸런싱 하이라이팅 애니메이션 */
+        .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; cursor: pointer; transition: transform 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease, background-color 0.4s ease; }
+        .card:hover { border-color: var(--accent-border); transform: translateY(-2px); }
+        .card.active-highlight { 
+            background: var(--bg-card-hover) !important; 
+            border: 2px solid #3b82f6 !important; 
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); 
+            animation: cardPulse 0.8s ease-out;
+        }
+        @keyframes cardPulse {
+            0% { transform: scale(0.97); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        
+        /* 장소 목록 카드 지역 태그 (네온 하이라이팅) */
+        .region-tag { 
+            display: inline-block; 
+            padding: 2px 8px; 
+            font-size: 0.72rem; 
+            font-weight: 800; 
+            border-radius: 6px; 
+            background: transparent !important; 
+            border: 1.5px solid var(--tag-color);
+            color: var(--tag-color);
+            text-shadow: var(--neon-text-shadow);
+            box-shadow: var(--neon-box-shadow);
+            transition: all 0.3s ease;
+        }
+        
+        .card h3 { font-size: 0.9rem; margin-bottom: 6px; font-weight: 700; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .card .meta-info { font-size: 0.75rem; color: var(--text-sub); display: flex; flex-direction: column; gap: 3px; }
+
+        .sidebar-footer { padding: 8px 16px 14px 16px; background: var(--bg-surface); display: flex; flex-direction: column; gap: 8px; }
+        .footer-controls { display: flex; align-items: center; gap: 8px; width: 100%; position: relative; }
+        .add-btn { width: 100%; padding: 9px 0; background: var(--bg-card); color: var(--text-main); font-size: 0.8rem; font-weight: 800; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+        .add-btn:hover { background: var(--bg-card-hover); border-color: var(--accent-border); }
+
+        .sort-btn { width: 36px; height: 36px; min-width: 36px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.85rem; font-weight: bold; color: var(--text-main); }
+        .sort-popup { position: absolute; bottom: 45px; left: 0; width: 220px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); padding: 6px 0; display: none; flex-direction: column; z-index: 2000; }
+        .sort-popup.show { display: flex; }
+        .sort-group-title { padding: 6px 12px 2px 12px; font-size: 0.7rem; color: var(--text-sub); font-weight: bold; }
+        .sort-option { padding: 6px 12px 6px 20px; font-size: 0.75rem; font-weight: 600; color: var(--text-main); cursor: pointer; transition: 0.2s; }
+        .sort-option:hover { background: var(--border-color); }
+        .sort-option.active { font-weight: 800; background: var(--bg-card-hover); border-left: 3px solid var(--text-main); }
+
+        .search-box { position: relative; display: flex; align-items: center; flex: 1; }
+        .search-input { width: 100%; padding: 8px 32px 8px 12px; font-size: 0.8rem; border: 1px solid var(--border-color); border-radius: 8px; outline: none; background: var(--bg-main); color: var(--text-main); }
+        .search-icon { position: absolute; right: 10px; font-size: 13px; color: var(--text-sub); pointer-events: none; }
+
+        #map-container { flex: 1; height: 100%; position: relative; overflow: hidden; background: #000; }
+        #map { width: 100%; height: 100%; background: var(--bg-main); }
+        .map-vignette { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 500; }
+
+        /* 토글 버튼 */
+        #fixed-toggle-btn {
+            position: absolute; top: 16px; left: 16px; width: 36px; height: 36px;
+            background: var(--popup-bg);
+            border: 1px solid var(--popup-border); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+            z-index: 2000; color: var(--popup-text); backdrop-filter: blur(6px); box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            transition: all 0.2s ease;
+        }
+        #fixed-toggle-btn:hover {
+            transform: scale(1.08);
+            border-color: var(--accent-border);
+        }
+        #fixed-toggle-btn .toggle-icon {
+            font-size: 14px;
+            font-weight: 900;
+            letter-spacing: -1.5px;
+            line-height: 1;
+            transform: translateY(-1px);
+            user-select: none;
+        }
+
+        /* 지도 마커 (네온 글로우) */
+        .camera-pin {
+            display: flex; align-items: center; justify-content: center;
+            background: var(--popup-bg);
+            border: 2.5px solid var(--pin-color, var(--popup-border)); border-radius: 50%; width: 36px; height: 36px;
+            font-size: 18px; 
+            box-shadow: 0 0 10px var(--pin-color, rgba(0,0,0,0.3)), 0 4px 12px rgba(0, 0, 0, 0.3); 
+            cursor: pointer; transition: all 0.25s ease; backdrop-filter: blur(3px);
+        }
+        .camera-pin:hover { transform: scale(1.18); border-color: var(--text-main) !important; box-shadow: 0 0 16px var(--pin-color), 0 6px 16px rgba(0, 0, 0, 0.4); }
+        .hq-emoji-pin { font-size: 38px; display: flex; align-items: center; justify-content: center; filter: drop-shadow(0px 4px 10px rgba(0, 0, 0, 0.4)); cursor: pointer; }
+
+        /* 말풍선 팝업 */
+        .leaflet-popup-content-wrapper { background: var(--popup-bg) !important; color: var(--popup-text) !important; border-radius: 12px; padding: 4px; border: 1px solid var(--popup-border); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        .leaflet-popup-tip { background: var(--popup-bg) !important; }
+        .popup-container { width: 280px; font-size: 0.82rem; padding: 6px 4px; color: var(--popup-text); }
+        .popup-address-title { font-size: 0.92rem; font-weight: 800; color: var(--popup-text); margin-bottom: 8px; border-bottom: 2px solid var(--popup-border); padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .popup-sch-item { background: var(--popup-item-bg); padding: 8px 10px; border-radius: 8px; border: 1px solid var(--popup-border); margin-bottom: 6px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; transition: background 0.2s; }
+        .popup-sch-item:hover { background: var(--popup-item-hover); }
+        .popup-sch-title { font-weight: 800; color: #3b82f6; font-size: 0.85rem; }
+        .popup-back-btn { display: inline-flex; align-items: center; gap: 4px; background: var(--popup-item-bg); color: var(--popup-text); border: 1px solid var(--popup-border); padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: bold; cursor: pointer; margin-bottom: 8px; }
+        .popup-back-btn:hover { background: var(--popup-item-hover); }
+        
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); display: none; justify-content: center; align-items: center; z-index: 3000; }
+        .modal-overlay.show { display: flex; }
+        .modal-box { background: var(--bg-surface); color: var(--text-main); width: 420px; border-radius: 16px; padding: 20px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 12px; max-height: 90vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
+        .modal-form { display: flex; flex-direction: column; gap: 10px; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-size: 0.78rem; font-weight: 700; color: var(--text-sub); }
+        .form-group input, .form-group textarea { padding: 8px; font-size: 0.8rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-main); color: var(--text-main); outline: none; }
+        .modal-submit-btn { padding: 10px; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 8px; font-weight: 800; cursor: pointer; }
+
+        @media (max-width: 768px) {
+            body { flex-direction: column-reverse; }
+            #sidebar { width: 100%; min-width: 100%; height: 45vh; position: absolute; bottom: 0; left: 0; border-top: 1px solid var(--border-color); border-radius: 20px 20px 0 0; }
+            #sidebar.collapsed { transform: translateY(calc(100% - 50px)); }
+            #map-container { height: 100vh; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 방송 오버레이 UI -->
+    <div id="broadcast-overlay">
+        <div class="smpte-bars-container" id="smpteBars">
+            <div class="smpte-top"><div class="bar bar-grey"></div><div class="bar bar-yellow"></div><div class="bar bar-cyan"></div><div class="bar bar-green"></div><div class="bar bar-magenta"></div><div class="bar bar-red"></div><div class="bar bar-blue"></div></div>
+            <div class="smpte-middle"><div class="bar bar-m-blue"></div><div class="bar bar-m-black"></div><div class="bar bar-m-magenta"></div><div class="bar bar-m-black"></div><div class="bar bar-m-cyan"></div><div class="bar bar-m-black"></div><div class="bar bar-m-grey"></div></div>
+            <div class="smpte-bottom"><div class="b-chunk-1"></div><div class="b-chunk-2"></div><div class="b-chunk-3"></div><div class="b-chunk-4"><div class="pluge-1"></div><div class="pluge-2"></div><div class="pluge-3"></div></div><div class="b-chunk-5"></div></div>
+        </div>
+        <div class="film-grain-layer"></div><canvas id="noiseCanvas"></canvas>
+        <div class="broadcast-text-only" id="broadcastBox"><span id="broadcastText"></span><span class="typing-cursor"></span></div>
+    </div>
+
+    <!-- VCR 토스트 -->
+    <div class="vcr-toast" id="vcrToast"><span>📼</span> <span id="vcrToastText">로딩중...</span></div>
+
+    <!-- 좌측 사이드바 -->
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <span class="brand-tag">MBC NEWS</span>
+            <div class="calendar-container">
+                <div class="calendar-header">
+                    <button class="calendar-nav-btn" onclick="changeMonth(-1)">◀</button>
+                    <h4 id="calendarMonthTitle">2026년 3월</h4>
+                    <button class="calendar-nav-btn" onclick="changeMonth(1)">▶</button>
+                </div>
+                <div class="calendar-grid">
+                    <div class="calendar-day-head">일</div><div class="calendar-day-head">월</div><div class="calendar-day-head">화</div><div class="calendar-day-head">수</div><div class="calendar-day-head">목</div><div class="calendar-day-head">금</div><div class="calendar-day-head">토</div>
+                </div>
+                <div class="calendar-grid" id="calendarDaysGrid"></div>
+            </div>
+        </div>
+
+        <div class="fade-divider-top"></div>
+        <div class="location-list" id="locationList"></div>
+        <div class="fade-divider-bottom"></div>
+
+        <div class="sidebar-footer">
+            <button class="add-btn" onclick="handleAuthAndOpenModal()">+ 일정 추가하기</button>
+            <div class="footer-controls">
+                <button class="sort-btn" onclick="toggleSortPopup(event)" title="정렬 옵션">↑↓</button>
+                
+                <div class="sort-popup" id="sortPopup">
+                    <div class="sort-group-title">촬영 날짜</div>
+                    <div class="sort-option active" id="opt-date-desc" onclick="setSortKey('date', 'desc')"><span>최신순 (내림차순)</span></div>
+                    <div class="sort-option" id="opt-date-asc" onclick="setSortKey('date', 'asc')"><span>과거순 (오름차순)</span></div>
+                    <div class="sort-group-title">제목 및 장소</div>
+                    <div class="sort-option" id="opt-title-asc" onclick="setSortKey('title', 'asc')"><span>제목 (가나다순)</span></div>
+                    <div class="sort-option" id="opt-category-asc" onclick="setSortKey('category', 'asc')"><span>장소구분 (가나다순)</span></div>
+                </div>
+
+                <div class="search-box">
+                    <input type="text" id="searchInput" class="search-input" placeholder="장소, 제목 검색..." oninput="debouncedSearch()">
+                    <span class="search-icon">🔍</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 지도 영역 -->
+    <div id="map-container">
+        <div id="fixed-toggle-btn" onclick="toggleSidebar()"><span class="toggle-icon">:::</span></div>
+        <div class="map-vignette" id="mapVignette"></div>
+        <div id="map"></div>
+    </div>
+
+    <!-- 🔒 관리자 인증 모달 -->
+    <div class="modal-overlay" id="authModal">
+        <div class="modal-box" style="width:340px;">
+            <div class="modal-header"><h3>🔒 관리자 인증</h3><span style="cursor:pointer;" onclick="closeAuthModal()">✕</span></div>
+            <div class="modal-form">
+                <div class="form-group"><label>6자리 비밀번호 입력</label><input type="password" id="inputAuthPw" maxlength="6" placeholder="******"></div>
+                <button type="button" class="modal-submit-btn" onclick="verifyPassword()">인증하기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 📝 신규 일정 등록 모달 -->
+    <div class="modal-overlay" id="addModal">
+        <div class="modal-box">
+            <div class="modal-header"><h3>NEW 촬영/취재 일정 등록</h3><span style="cursor:pointer;" onclick="closeAddModal()">✕</span></div>
+            <form class="modal-form" onsubmit="handleFormSubmit(event)">
+                <div class="form-group"><label>기획 제목</label><input type="text" id="inputTitle" required></div>
+                <div class="form-group"><label>촬영일자 (YYYY-MM-DD)</label><input type="text" id="inputDate" placeholder="2026-03-15" required></div>
+                <div class="form-group"><label>카테고리</label><input type="text" id="inputCategory" placeholder="사회부 / 기획취재" required></div>
+                <div class="form-group"><label>촬영 장소 (도로명 주소)</label><input type="text" id="inputAddress" placeholder="서울특별시 마포구 성암로 267" required></div>
+                <div class="form-group"><label>담당 취재진</label><input type="text" id="inputReporter"></div>
+                <div class="form-group"><label>촬영 장비</label><input type="text" id="inputEquip"></div>
+                <div class="form-group"><label>📺 뉴스 보도 기사/영상 링크 (URL)</label><input type="url" id="inputNewsUrl" placeholder="https://imnews.imbc.com/..."></div>
+                <div class="form-group"><label>세부내용</label><textarea id="inputDesc" rows="2"></textarea></div>
+                <button type="submit" class="modal-submit-btn">클라우드 서버에 등록</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // 🌐 상대 경로 적용: 배포된 동일 도메인의 백엔드로 자동 연결
+        const SERVER_URL = window.location.origin;
+
+        let rawLocations = [];
+        let groupedSchedules = {};
+        let addressMarkers = {};
+        let currentOrderList = [];
+        
+        let currentCalYear = 2026, currentCalMonth = 3;
+        let selectedCalendarDate = null;
+        let activeSortKey = 'date';
+        let activeSortOrder = 'desc';
+
+        const detailCache = {};
+        async function fetchScheduleDetail(id) {
+            if (detailCache[id]) return detailCache[id];
+            try {
+                const res = await fetch(`${SERVER_URL}/api/schedules/detail?id=${id}`);
+                const data = await res.json();
+                if (data && data.length > 0) {
+                    detailCache[id] = data[0];
+                    return data[0];
+                }
+            } catch (err) {
+                console.error("세부 데이터 로딩 실패:", err);
+            }
+            return null;
+        }
+
+        const DETAILED_REGION_COLORS = {
+            "종로구": "#eab308", "중구": "#ef4444", "용산구": "#3b82f6", "성동구": "#10b981", "광진구": "#6366f1",
+            "동대문구": "#ec4899", "중랑구": "#22c55e", "성북구": "#1e40af", "강북구": "#15803d", "도봉구": "#2563eb",
+            "노원구": "#60a5fa", "은평구": "#4338ca", "서대문구": "#059669", "마포구": "#06b6d4", "양천구": "#f97316",
+            "강서구": "#16a34a", "구로구": "#dc2626", "금천구": "#0284c7", "영등포구": "#1d4ed8", "동작구": "#10b981",
+            "관악구": "#059669", "서초구": "#14b8a6", "강남구": "#2563eb", "송파구": "#047857", "강동구": "#1d4ed8",
+
+            "수원시": "#1d4ed8", "용인시": "#14b8a6", "고양시": "#0f766e", "화성시": "#f97316", "성남시": "#2563eb",
+            "부천시": "#312e81", "남양주시": "#1e40af", "안산시": "#4c1d95", "평택시": "#0891b2", "안양시": "#1d4ed8",
+            "시흥시": "#ea580c", "파주시": "#1e3a8a", "김포시": "#d97706", "의정부시": "#059669", "광주시": "#16a34a",
+            "하남시": "#2563eb", "광명시": "#d97706", "군포시": "#0891b2", "양주시": "#65a30d", "오산시": "#0284c7",
+            "이천시": "#1d4ed8", "안성시": "#1e3a8a", "구리시": "#4338ca", "의왕시": "#0d9488", "포천시": "#0284c7",
+            "과천시": "#14b8a6", "여주시": "#b91c1c", "동두천시": "#16a34a", "양평군": "#1e40af", "가평군": "#2563eb",
+            "연천군": "#eab308",
+
+            "부산": "#ec4899", "부산광역시": "#ec4899",
+            "인천": "#0284c7", "인천광역시": "#0284c7",
+            "대구": "#16a34a", "대구광역시": "#16a34a",
+            "대전": "#059669", "대전광역시": "#059669",
+            "울산": "#0891b2", "울산광역시": "#0891b2",
+            "세종": "#06b6d4", "세종특별자치시": "#06b6d4",
+            "충북": "#8b5cf6", "충청북도": "#8b5cf6",
+            "충남": "#78716c", "충청남도": "#78716c",
+            "경북": "#2563eb", "경상북도": "#2563eb",
+            "경남": "#f97316", "경상남도": "#f97316",
+            "강원": "#ef4444", "강원특별자치도": "#ef4444", "강원도": "#ef4444",
+            "전북": "#1d4ed8", "전북특별자치도": "#1d4ed8", "전라북도": "#1d4ed8",
+            "전남": "#1e40af", "전라남도": "#1e40af",
+            "제주": "#6b7280", "제주특별자치도": "#6b7280"
+        };
+
+        function getDetailedRegionInfo(address) {
+            if (!address) return { name: "전국", color: "#8e918f" };
+            for (let regKey in DETAILED_REGION_COLORS) {
+                if (address.includes(regKey)) {
+                    return { name: regKey, color: DETAILED_REGION_COLORS[regKey] };
+                }
+            }
+            return { name: "기타", color: "#8e918f" };
+        }
+
+        /* 🔒 관리자 인증 */
+        function handleAuthAndOpenModal() {
+            document.getElementById('authModal').classList.add('show');
+            document.getElementById('inputAuthPw').value = '';
+        }
+        function closeAuthModal() { document.getElementById('authModal').classList.remove('show'); }
+        function verifyPassword() {
+            if (document.getElementById('inputAuthPw').value.trim() === '259303') {
+                closeAuthModal(); document.getElementById('addModal').classList.add('show');
+            } else { alert("비밀번호가 틀렸습니다."); }
+        }
+        function closeAddModal() { document.getElementById('addModal').classList.remove('show'); }
+
+        /* 방송 오버레이 UI */
+        const overlay = document.getElementById('broadcast-overlay');
+        function setBroadcastState(state) {
+            if (state === 'connecting') {
+                overlay.classList.remove('hidden');
+                document.getElementById('smpteBars').style.display = 'flex';
+                document.getElementById('broadcastText').innerText = "데이터 로딩 중...";
+            } else if (state === 'success') {
+                setTimeout(() => {
+                    overlay.classList.add('hidden');
+                    document.body.classList.add('glitch-active');
+                    setTimeout(() => document.body.classList.remove('glitch-active'), 550);
+                }, 300);
+            }
+        }
+        function showVcrToast(text) {
+            const toast = document.getElementById('vcrToast');
+            document.getElementById('vcrToastText').innerText = text;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        /* Leaflet 지도 초기화 */
+        const map = L.map('map', { zoomControl: false }).setView([37.5802, 126.8903], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+        const createMarkerIcon = (isMainHQ, color) => {
+            if (isMainHQ) return L.divIcon({ className: 'hq-marker-wrapper', html: `<div class="hq-emoji-pin">🏢</div>`, iconSize: [44, 44], iconAnchor: [22, 22] });
+            return L.divIcon({ 
+                className: 'custom-camera-wrapper', 
+                html: `<div class="camera-pin" style="--pin-color:${color};">🎥</div>`, 
+                iconSize: [36, 36], 
+                iconAnchor: [18, 18] 
+            });
+        };
+
+        const listContainer = document.getElementById('locationList');
+
+        async function fetchLocationsFromCloud() {
+            setBroadcastState('connecting');
+            showVcrToast("서버 데이터 로딩 중...");
+            try {
+                const res = await fetch(`${SERVER_URL}/api/locations/light`);
+                rawLocations = await res.json();
+                
+                groupedSchedules = {};
+
+                for (let i = 0; i < rawLocations.length; i++) {
+                    const loc = rawLocations[i];
+                    let lat = parseFloat(loc.lat);
+                    let lng = parseFloat(loc.lng);
+
+                    if (isNaN(lat) || isNaN(lng)) {
+                        lat = 37.5802; lng = 126.8903;
+                    }
+
+                    loc.lat = lat; loc.lng = lng;
+                    const addrKey = loc.address || `${lat},${lng}`;
+
+                    if (!groupedSchedules[addrKey]) {
+                        groupedSchedules[addrKey] = {
+                            coords: { lat, lng },
+                            items: []
+                        };
+                    }
+                    groupedSchedules[addrKey].items.push(loc);
+                }
+                
+                refreshGroupedMarkers();
+                currentOrderList = rawLocations.filter(d => !d.isMainHQ);
+                applySortingAndRender();
+                renderCalendar(currentCalYear, currentCalMonth);
+                setBroadcastState('success');
+            } catch (err) { 
+                console.error(err); 
+                showVcrToast("❌ 서버 데이터를 불러오지 못했습니다.");
+            }
+        }
+
+        function refreshGroupedMarkers() {
+            Object.values(addressMarkers).forEach(m => map.removeLayer(m));
+            addressMarkers = {};
+            
+            for (const address in groupedSchedules) {
+                const group = groupedSchedules[address];
+                const firstItem = group.items[0];
+                if (!firstItem || !group.coords) continue;
+
+                const regInfo = getDetailedRegionInfo(address);
+                const marker = L.marker([group.coords.lat, group.coords.lng], { 
+                    icon: createMarkerIcon(firstItem.isMainHQ, regInfo.color) 
+                }).addTo(map);
+                
+                addressMarkers[address] = marker;
+                
+                marker.on('click', () => {
+                    highlightSchedulesByAddress(address, true);
+                    rebalanceCardsToTopByAddress(address);
+                });
+            }
+        }
+
+        /* 🎈 팝업 목록 및 세부 정보 온디맨드 로딩 */
+        function renderPopupListView(address) {
+            const group = groupedSchedules[address];
+            if (!group) return '';
+
+            let itemsHTML = group.items.map((item, idx) => `
+                <div class="popup-sch-item" onclick="openPopupDetailView('${address}', ${idx})">
+                    <div class="popup-sch-title">📌 ${item.title}</div>
+                    <div style="font-size:0.75rem;">📅 ${item.date}</div>
+                    <div style="font-size:0.7rem; color:#3b82f6; font-weight:bold; margin-top:2px;">👆 클릭하여 촬영 장비/세부내용 보기</div>
+                </div>
+            `).join('');
+
+            return `
+                <div class="popup-container">
+                    <div class="popup-address-title">📍 ${address} <span style="font-size:0.8rem; opacity:0.8;">(총 ${group.items.length}건)</span></div>
+                    <div style="max-height: 220px; overflow-y: auto;">
+                        ${itemsHTML}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function openPopupDetailView(address, itemIdx) {
+            const group = groupedSchedules[address];
+            if (!group || !group.items[itemIdx] || !addressMarkers[address]) return;
+            const itemLight = group.items[itemIdx];
+
+            const loadingHTML = `
+                <div class="popup-container">
+                    <button class="popup-back-btn" onclick="renderPopupListContent('${address}')">◀ 뒤로가기 (목록)</button>
+                    <div style="padding:10px; text-align:center; font-size:0.8rem;">⏳ 서버에서 세부 데이터 로딩 중...</div>
+                </div>
+            `;
+            addressMarkers[address].bindPopup(loadingHTML, { maxWidth: 300, autoPan: true }).openPopup();
+
+            const fullDetail = await fetchScheduleDetail(itemLight.id) || itemLight;
+
+            const detailHTML = `
+                <div class="popup-container">
+                    <button class="popup-back-btn" onclick="renderPopupListContent('${address}')">◀ 뒤로가기 (목록)</button>
+                    <div class="popup-address-title" style="font-size:0.9rem; color:#3b82f6;">📌 ${fullDetail.title}</div>
+                    <div style="display:flex; flex-direction:column; gap:6px; font-size:0.78rem; max-height:210px; overflow-y:auto; line-height:1.4;">
+                        <div><b>📅 촬영일:</b> ${fullDetail.date}</div>
+                        <div><b>📍 장소:</b> ${fullDetail.address}</div>
+                        <div><b>🎥 취재/촬영진:</b> ${fullDetail.reporter || fullDetail.camReporter || '-'}</div>
+                        <div><b>📹 촬영 장비:</b> ${fullDetail.equipment || '-'}</div>
+                        <div><b>📝 촬영/취재 그림:</b> ${fullDetail.desc || '-'}</div>
+                        ${fullDetail.newsUrl ? `<div style="margin-top:4px;"><b>📺 뉴스 보도:</b> <a href="${fullDetail.newsUrl}" target="_blank" style="color:#3b82f6; text-decoration:underline; font-weight:bold;">기사/영상 보기</a></div>` : ''}
+                    </div>
+                </div>
+            `;
+
+            addressMarkers[address].bindPopup(detailHTML, { maxWidth: 300, autoPan: true }).openPopup();
+        }
+
+        function renderPopupListContent(address) {
+            if (!addressMarkers[address]) return;
+            addressMarkers[address].bindPopup(renderPopupListView(address), { maxWidth: 300, autoPan: true }).openPopup();
+        }
+
+        function highlightSchedulesByAddress(address, syncCalendar = true) {
+            const group = groupedSchedules[address];
+            if (!group || group.items.length === 0) return;
+
+            map.flyTo([group.coords.lat, group.coords.lng], 14, { duration: 1.0 });
+
+            renderPopupListContent(address);
+
+            if (syncCalendar && group.items[0].date !== '상시 근무') {
+                const dateObj = new Date(group.items[0].date);
+                currentCalYear = dateObj.getFullYear();
+                currentCalMonth = dateObj.getMonth() + 1;
+                selectedCalendarDate = group.items[0].date;
+                renderCalendar(currentCalYear, currentCalMonth);
+            }
+        }
+
+        /* 🔄 장소 목록 카드 리밸런싱 */
+        function rebalanceCardsToTopByAddress(targetAddress) {
+            const matches = [];
+            const nonMatches = [];
+
+            currentOrderList.forEach(item => {
+                if (item.address === targetAddress) matches.push(item);
+                else nonMatches.push(item);
+            });
+
+            currentOrderList = [...matches, ...nonMatches];
+            renderLocationCards(currentOrderList);
+
+            setTimeout(() => {
+                document.querySelectorAll('.card').forEach(c => c.classList.remove('active-highlight'));
+                matches.forEach(m => {
+                    const el = document.getElementById(`card-${m.id}`);
+                    if (el) el.classList.add('active-highlight');
+                });
+                listContainer.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 50);
+        }
+
+        function rebalanceCardsToTopByDate(targetDate) {
+            const matches = [];
+            const nonMatches = [];
+
+            currentOrderList.forEach(item => {
+                if ((item.datesList || [item.date]).includes(targetDate)) matches.push(item);
+                else nonMatches.push(item);
+            });
+
+            currentOrderList = [...matches, ...nonMatches];
+            renderLocationCards(currentOrderList);
+
+            setTimeout(() => {
+                document.querySelectorAll('.card').forEach(c => c.classList.remove('active-highlight'));
+                matches.forEach(m => {
+                    const el = document.getElementById(`card-${m.id}`);
+                    if (el) el.classList.add('active-highlight');
+                });
+                listContainer.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 50);
+        }
+
+        /* 📅 캘린더 동기화 및 톤다운 하이라이팅 */
+        function renderCalendar(year, month) {
+            document.getElementById('calendarMonthTitle').innerText = `${year}년 ${month}월`;
+            const daysGrid = document.getElementById('calendarDaysGrid'); daysGrid.innerHTML = '';
+            const firstDay = new Date(year, month - 1, 1).getDay();
+            const lastDate = new Date(year, month, 0).getDate();
+
+            for (let i = 0; i < firstDay; i++) daysGrid.appendChild(document.createElement('div'));
+
+            for (let d = 1; d <= lastDate; d++) {
+                const cell = document.createElement('div');
+                cell.className = 'calendar-date-cell'; cell.innerText = d;
+                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                cell.setAttribute('data-date', dateStr);
+                
+                const matched = rawLocations.find(item => (item.datesList || [item.date]).includes(dateStr));
+                if (matched) {
+                    cell.classList.add('has-event');
+                    
+                    if (selectedCalendarDate === dateStr) {
+                        cell.classList.add('selected-date');
+                    }
+
+                    cell.addEventListener('click', () => {
+                        document.querySelectorAll('.calendar-date-cell').forEach(c => c.classList.remove('selected-date'));
+                        cell.classList.add('selected-date');
+                        selectedCalendarDate = dateStr;
+                        
+                        rebalanceCardsToTopByDate(dateStr);
+                        
+                        const targetItem = currentOrderList.find(i => (i.datesList || [i.date]).includes(dateStr));
+                        if(targetItem) {
+                            highlightSchedulesByAddress(targetItem.address, false);
+                        }
+                    });
+                }
+                daysGrid.appendChild(cell);
+            }
+        }
+
+        function changeMonth(delta) {
+            currentCalMonth += delta;
+            if (currentCalMonth > 12) { currentCalMonth = 1; currentCalYear++; }
+            else if (currentCalMonth < 1) { currentCalMonth = 12; currentCalYear--; }
+            renderCalendar(currentCalYear, currentCalMonth);
+        }
+
+        /* 정렬 기능 */
+        function toggleSortPopup(e) { e.stopPropagation(); document.getElementById('sortPopup').classList.toggle('show'); }
+        document.addEventListener('click', () => { const p = document.getElementById('sortPopup'); if(p) p.classList.remove('show'); });
+
+        function setSortKey(key, order) {
+            activeSortKey = key; activeSortOrder = order;
+            document.querySelectorAll('.sort-option').forEach(el => el.classList.remove('active'));
+            document.getElementById(`opt-${key}-${order}`).classList.add('active');
+            applySortingAndRender();
+        }
+
+        function applySortingAndRender() {
+            currentOrderList.sort((a, b) => {
+                let valA = a[activeSortKey] || ''; let valB = b[activeSortKey] || '';
+                let comparison = valA.localeCompare(valB, 'ko-KR');
+                return activeSortOrder === 'asc' ? comparison : -comparison;
+            });
+            renderLocationCards(currentOrderList);
+        }
+
+        /* 카드 지역태그 (네온 CSS 변수 주입) */
+        function renderLocationCards(dataList) {
+            listContainer.innerHTML = '';
+            dataList.forEach(data => {
+                if (data.isMainHQ) return;
+                const regInfo = getDetailedRegionInfo(data.address);
+                const card = document.createElement('div');
+                card.className = 'card'; card.id = `card-${data.id}`;
+                card.innerHTML = `
+                    <div class="card-header">
+                        <span class="region-tag" style="--tag-color:${regInfo.color};">${regInfo.name}</span>
+                    </div>
+                    <h3>${data.title}</h3>
+                    <div class="meta-info"><span>📍 ${data.address}</span><span>📅 ${data.date}</span></div>
+                `;
+                
+                card.addEventListener('click', async () => {
+                    highlightSchedulesByAddress(data.address, true);
+                    rebalanceCardsToTopByAddress(data.address);
+                    await fetchScheduleDetail(data.id);
+                });
+                
+                listContainer.appendChild(card);
+            });
+        }
+
+        let searchDebounceTimer = null;
+        function debouncedSearch() {
+            if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(() => {
+                const q = document.getElementById('searchInput').value.trim().toLowerCase();
+                currentOrderList = q ? rawLocations.filter(i => !i.isMainHQ && ((i.title||'').toLowerCase().includes(q) || (i.address||'').toLowerCase().includes(q))) : rawLocations.filter(d => !d.isMainHQ);
+                applySortingAndRender();
+                listContainer.scrollTop = 0;
+            }, 150);
+        }
+
+        /* 일정 추가 */
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            showVcrToast("📼 서버에 등록하는 중...");
+
+            const newSchedule = {
+                title: document.getElementById('inputTitle').value,
+                date: document.getElementById('inputDate').value,
+                category: document.getElementById('inputCategory').value,
+                address: document.getElementById('inputAddress').value,
+                reporter: document.getElementById('inputReporter').value,
+                equipment: document.getElementById('inputEquip').value,
+                newsUrl: document.getElementById('inputNewsUrl').value,
+                desc: document.getElementById('inputDesc').value,
+                datesList: [document.getElementById('inputDate').value]
+            };
+
+            await fetch(`${SERVER_URL}/api/schedules`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newSchedule) });
+            closeAddModal();
+            fetchLocationsFromCloud();
+        }
+
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); setTimeout(() => map.invalidateSize(), 350); }
+
+        fetchLocationsFromCloud();
+    </script>
+</body>
+</html>
